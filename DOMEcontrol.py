@@ -43,6 +43,7 @@ def WeatherCheck(station):
     elif windSpeed > 8:
         return False
     else:
+        logging.info("Weather is OK")
         return True
     # end if
 # end WeatherCheck
@@ -121,22 +122,41 @@ if __name__ == '__main__':
         time.sleep(60)
     # end while
 
-    while WorkFlagCheck(datetime.today()):
+    while WorkFlagCheck(datetime.datetime.today()):
         if WeatherCheck(station):
-            dome.ShutterOpen()
+            if dome.ShutterStatus != 1:
+                dome.OpenShutter()
+                logging.info("Shutter opened")
+                time.sleep(15)
+            # end if
         else:
-            dome.ShutterClose()
+            if dome.ShutterStatus != 0:
+                dome.CloseShutter()
+                logging.info("Shutter closed")
+                time.sleep(15)
+            # end if
         # end if
 
         TargetAz = SAMazCheck()
-        dome.SlewToAzimuth(TargetAz)
-        time.sleep(30)
+        try:
+            dome.SlewToAzimuth(TargetAz + 5)
+            logging.info("Dome is going to " + str(TargetAz))
+        except Exception as e:
+            logging.warning(e)
+        # end try
+        time.sleep(60)
+        logging.info("Dome is in " + str(dome.Azimuth))
     # end while
 
     # завершение работы купола
-    dome.ShutterClose()
+    dome.CloseShutter()
+    logging.info("Shutter closed")
     time.sleep(30)
-    dome.FindHome()
+    try:
+        dome.FindHome()
+    except Exception as e:
+        logging.warning(e)
+    # end try
     while dome.Slewing:
         time.sleep(15)
     # end while

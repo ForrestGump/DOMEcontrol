@@ -10,7 +10,7 @@ import datetime
 import logging
 import win32com.client
 import weather.stations
-from sunpos import *
+from sunpos import time_and_location_to_sun_alt_azimuth
 
 # TODO: загрузка информации из ini файла
 UTCdif = 4              # разница во времени с UTC
@@ -20,7 +20,7 @@ OBN_long = 36.6102800   # долгота в.д.
 
 def WeatherCheck(station):
     # получение данных с метеостанции и определение возможности работы
-    # TODO: написать логику реакции на состояние атмосферы
+    # TODO: сохранение (публикация) метеоданных
     def Fahrenheit2Celsius(fahrenheit):
         # Fahrenheit (F) to Celsius (C)
         return (fahrenheit - 32) * 5.0 / 9.0
@@ -45,23 +45,23 @@ def WeatherCheck(station):
 
     if rainRate > 0:
         # дождь
-        logDome.info("RainRate "+str(rainRate)+" > 0")
+        logDome.warning("RainRate " + str(rainRate) + " > 0")
         return False
     elif (tempOut - dewPoint) < 1.5:
         # температура приближается к точке росы
-        logDome.info("TempOut is near DewPoint, "+str(tempOut - dewPoint))
+        logDome.warning("TempOut is near DewPoint, " + str(tempOut - dewPoint))
         return False
     elif tempOut < 0:
         # температура ниже нуля
-        logDome.info("TempOut "+str(tempOut)+" < 0")
+        logDome.warning("TempOut " + str(tempOut) + " < 0")
         return False
     elif humOut > 85:
         # влажность выше 85%
-        logDome.info("HumOut "+str(humOut)+"% > 85%")
+        logDome.warning("HumOut " + str(humOut) + "% > 85%")
         return False
     elif windSpeed > 5:
         # ветер больше 5 м/с
-        logDome.info("WindSpeed "+str(windSpeed)+"m/sec > 5 m/sec")
+        logDome.warning("WindSpeed " + str(windSpeed) + "m/sec > 5 m/sec")
         return False
     else:
         logDome.info("Weather is OK")
@@ -84,7 +84,7 @@ def SAMazCheck():
         file_text = log_move.readlines()
         log_move.close()
     except Exception as e:
-        logDome.warning(e)
+        logDome.exception(e)
         cord_az = -999
     # end try
 
@@ -93,7 +93,7 @@ def SAMazCheck():
         str_cord = file_text[-1]
         cord_az = float(str_cord[22:32])
     except Exception as e:
-        logDome.warning(e)
+        logDome.exception(e)
         cord_az = -999
     # end try
 
@@ -118,9 +118,12 @@ def WorkFlagCheck(dt_now):
 if __name__ == '__main__':
     # настройка логирования
     logging.basicConfig(filename='DOMEauto.log', filemode='w',
-                        format='%(asctime)s %(levelname)s:%(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S', level=logging.DEBUG)
+                        format='%(asctime)s %(name)s \
+                        %(levelname)s:%(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
     logDome = logging.getLogger(__name__)
+    # CHANGED: будет ли работать - вопрос
+    logDome.addFilter(logging.Filter(__name__))
 
     # установка соединения с куполом
     try:
@@ -128,7 +131,7 @@ if __name__ == '__main__':
         dome.Connected = True
         logDome.info("Dome is connected")
     except Exception as e:
-        logDome.warning(e)
+        logDome.exception(e)
     # end try
 
     # установка соединения с метеостанцией
@@ -136,7 +139,7 @@ if __name__ == '__main__':
         station = weather.stations.VantagePro('COM5')
         logDome.info("Weatherstation is connected")
     except Exception as e:
-        logDome.warning(e)
+        logDome.exception(e)
     # end try
 
     # ожидание Солнца выше 16 градусов над горизонтом и готовности АГАТа
@@ -153,7 +156,7 @@ if __name__ == '__main__':
             if dome.ShutterStatus != 0:
                 dome.OpenShutter()
                 logDome.info("Shutter opened")
-                time.sleep(15)
+                time.sleep(30)
             # end if
 
             TargetAz = SAMazCheck()
@@ -161,7 +164,7 @@ if __name__ == '__main__':
                 dome.SlewToAzimuth(TargetAz + 5)
                 logDome.info("Dome is going to " + str(TargetAz))
             except Exception as e:
-                logDome.warning(e)
+                logDome.exception(e)
             # end try
             time.sleep(60)
             logDome.info("Dome is in " + str(dome.Azimuth))
@@ -170,7 +173,7 @@ if __name__ == '__main__':
             if dome.ShutterStatus != 1:
                 dome.CloseShutter()
                 logDome.info("Shutter closed")
-                time.sleep(15)
+                time.sleep(30)
             # end if
         # end if
     # end while
@@ -181,7 +184,7 @@ if __name__ == '__main__':
     if dome.ShutterStatus != 1:
         dome.CloseShutter()
         logDome.info("Shutter closed")
-        time.sleep(15)
+        time.sleep(30)
     # end if
 
     # завершение работы купола - парковка
@@ -189,10 +192,10 @@ if __name__ == '__main__':
         dome.FindHome()
         logDome.info("DOME is in Home position")
     except Exception as e:
-        logDome.warning(e)
+        logDome.exception(e)
     # end try
     while dome.Slewing:
-        time.sleep(15)
+        time.sleep(5)
     # end while
     dome.Connected = False
     logDome.info("Dome is disconnected")

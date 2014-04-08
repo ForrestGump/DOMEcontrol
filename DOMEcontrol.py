@@ -17,6 +17,8 @@ UTCdif = 4              # разница во времени с UTC
 OBN_lat = 55.0969400    # широта с.ш.
 OBN_long = 36.6102800   # долгота в.д.
 
+logDome = logging.getLogger('DOMEcontrol')
+
 
 def WeatherCheck(station):
     # получение данных с метеостанции и определение возможности работы
@@ -56,8 +58,8 @@ def WeatherCheck(station):
         logDome.warning("TempOut " + str(tempOut) + " < 0")
         return False
     elif humOut > 85:
-        # влажность выше 85%
-        logDome.warning("HumOut " + str(humOut) + "% > 85%")
+        # влажность выше 80%
+        logDome.warning("HumOut " + str(humOut) + "% > 80%")
         return False
     elif windSpeed > 5:
         # ветер больше 5 м/с
@@ -121,9 +123,9 @@ if __name__ == '__main__':
                         format='%(asctime)s %(name)s \
                         %(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
-    logDome = logging.getLogger(__name__)
-    # CHANGED: будет ли работать - вопрос
-    logDome.addFilter(logging.Filter(__name__))
+    # вывод только сообщение нашего логера
+    for handler in logging.root.handlers:
+        handler.addFilter(logging.Filter('DOMEcontrol'))
 
     # установка соединения с куполом
     try:

@@ -47,7 +47,7 @@ def WeatherCheck(station):
 
     if rainRate > 0:
         # дождь
-        logDome.warning("RainRate " + str(rainRate) + " > 0")
+        logDome.warning("RainRate " + str(rainRate) + "mm/hr > 0")
         return False
     elif (tempOut - dewPoint) < 1.5:
         # температура приближается к точке росы
@@ -156,8 +156,12 @@ if __name__ == '__main__':
         # NOTE: ShutterStatus 3=indeterm, 1=closed, 0=open
         if WeatherCheck(station):
             if dome.ShutterStatus != 0:
-                dome.OpenShutter()
-                logDome.info("Shutter opened")
+                try:
+                    dome.OpenShutter()
+                    logDome.info("Shutter opened")
+                except Exception as e:
+                    logDome.exception(e)
+                # end try
                 time.sleep(30)
             # end if
 
@@ -173,14 +177,18 @@ if __name__ == '__main__':
 
         else:
             if dome.ShutterStatus != 1:
-                dome.CloseShutter()
-                logDome.info("Shutter closed")
+                try:
+                    dome.CloseShutter()
+                    logDome.info("Shutter closed")
+                except Exception as e:
+                    logDome.exception(e)
+                # end try
+                time.sleep(30)
+            else:
                 time.sleep(30)
             # end if
         # end if
     # end while
-
-    logDome.info("End of work")
 
     # завершение работы купола - закрытие затвора
     if dome.ShutterStatus != 1:
@@ -189,16 +197,7 @@ if __name__ == '__main__':
         time.sleep(30)
     # end if
 
-    # завершение работы купола - парковка
-    try:
-        dome.FindHome()
-        logDome.info("DOME is in Home position")
-    except Exception as e:
-        logDome.exception(e)
-    # end try
-    while dome.Slewing:
-        time.sleep(5)
-    # end while
     dome.Connected = False
     logDome.info("Dome is disconnected")
+    logDome.info("End of work")
 # end __main__

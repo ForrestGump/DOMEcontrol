@@ -11,6 +11,7 @@ import logging
 import win32com.client
 import weather.stations
 from sunpos import time_and_location_to_sun_alt_azimuth
+from cloudWatcher import AAGCheck
 
 # TODO: загрузка информации из ini файла
 UTCdif = 4              # разница во времени с UTC
@@ -151,10 +152,12 @@ if __name__ == '__main__':
     # end while
 
     logDome.info("Getting Started")
+    # файл данных датчика облачности
+    str_AAGfile = "D:\Temp\CloudWatcher.csv"
 
     while WorkFlagCheck(datetime.datetime.today()):
         # NOTE: ShutterStatus 3=indeterm, 1=closed, 0=open
-        if WeatherCheck(station):
+        if WeatherCheck(station) and AAGCheck(str_AAGfile):
             if dome.ShutterStatus != 0:
                 try:
                     dome.OpenShutter()

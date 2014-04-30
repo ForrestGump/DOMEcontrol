@@ -11,7 +11,7 @@ import logging
 import win32com.client
 import weather.stations
 from sunpos import time_and_location_to_sun_alt_azimuth
-from cloudWatcher import AAGCheck
+from cloudWatcher import AAG_GetSwitch, AAG_Connect, AAG_Disconnect
 
 # TODO: загрузка информации из ini файла
 UTCdif = 4              # разница во времени с UTC
@@ -145,6 +145,14 @@ if __name__ == '__main__':
         logDome.exception(e)
     # end try
 
+    # установка соединения с датчиком облачности
+    try:
+        AAG = AAG_Connect('COM3')
+        logDome.info("AAG CloudWatcher is connected")
+    except Exception as e:
+        logDome.exception(e)
+    # end try
+
     # ожидание Солнца выше 16 градусов над горизонтом и готовности АГАТа
     while not (WorkFlagCheck(datetime.datetime.today()) and SAMazCheck() > 0):
         logDome.info("Sun is below 15.5 degrees or SAM is not ready yet")
@@ -152,12 +160,10 @@ if __name__ == '__main__':
     # end while
 
     logDome.info("Getting Started")
-    # файл данных датчика облачности
-    str_AAGfile = "D:\Temp\CloudWatcher.csv"
 
     while WorkFlagCheck(datetime.datetime.today()):
         # NOTE: ShutterStatus 3=indeterm, 1=closed, 0=open
-        if WeatherCheck(station) and AAGCheck(str_AAGfile):
+        if WeatherCheck(station) and AAG_GetSwitch(AAG):
             if dome.ShutterStatus != 0:
                 try:
                     dome.OpenShutter()
@@ -192,6 +198,10 @@ if __name__ == '__main__':
             # end if
         # end if
     # end while
+
+    # завершение работы датчика облачности
+    AAG_Disconnect(AAG)
+    logDome.info("AAG CloudWatcher is disconnected")
 
     # завершение работы купола - закрытие затвора
     if dome.ShutterStatus != 1:

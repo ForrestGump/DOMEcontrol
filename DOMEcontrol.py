@@ -11,18 +11,19 @@ import logging
 import win32com.client
 import weather.stations
 from sunpos import time_and_location_to_sun_alt_azimuth
-from cloudWatcher import AAG_GetSwitch, AAG_Connect, AAG_Disconnect
+import cloudWatcher as cW
 
 # TODO: загрузка информации из ini файла
-UTCdif = 4              # разница во времени с UTC
-OBN_lat = 55.0969400    # широта с.ш.
-OBN_long = 36.6102800   # долгота в.д.
+UTC_DIFF = 4              # разница во времени с UTC
+OBN_LAT = 55.0969400    # широта с.ш.
+OBN_LONG = 36.6102800   # долгота в.д.
 
 logDome = logging.getLogger('DOMEcontrol')
 
 
 def WeatherCheck(station):
-    # получение данных с метеостанции и определение возможности работы
+    '''Получение данных с метеостанции и определение возможности работы
+    '''
     # TODO: сохранение (публикация) метеоданных
     def Fahrenheit2Celsius(fahrenheit):
         # Fahrenheit (F) to Celsius (C)
@@ -58,23 +59,55 @@ def WeatherCheck(station):
         # температура ниже нуля
         logDome.warning("TempOut " + str(tempOut) + " < 0")
         return False
-    elif humOut > 85:
+    elif humOut > 80:
         # влажность выше 80%
         logDome.warning("HumOut " + str(humOut) + "% > 80%")
         return False
-    elif windSpeed > 5:
-        # ветер больше 5 м/с
-        logDome.warning("WindSpeed " + str(windSpeed) + "m/sec > 5 m/sec")
+    elif windSpeed > 8:
+        # ветер больше 8 м/с
+        logDome.warning("WindSpeed " + str(windSpeed) + "m/sec > 8 m/sec")
         return False
     else:
         logDome.info("Weather is OK")
+        logDome.info(str(tempOut) + " " + str(dewPoint) + " " + str(humOut) +
+                     " " + str(windSpeed) + " " + str(rainRate))
         return True
     # end if
 # end WeatherCheck
 
 
+def AAGCheck(AAG):
+    '''Получение данных с датчика облачности
+    '''
+    aag_switch = cW.AAG_GetSwitch(AAG)
+    aag_skyTemp = cW.AAG_SkyTempCorrection(cW.AAG_GetAmbTemp(AAG),
+                                           cW.AAG_GetSkyTemp(AAG))
+    aag_rainFreq = cW.AAG_GetRainFrequency(AAG)
+
+    if not(aag_switch):
+        # небезопасный режим работы
+        logDome.warning("AAG_GetSwitch is " + str(aag_switch))
+        return False
+    elif aag_skyTemp > -2.:
+        # облака отколо теплой фазы
+        logDome.warning("skyTemp " + str(aag_skyTemp) + " > -2")
+        return False
+    elif aag_rainFreq < 2200:
+        # возможен дождь
+        logDome.warning("RainFrequency " + str(aag_rainFreq) + " < 2200")
+        return False
+    else:
+        logDome.info("AAG is OK")
+        logDome.info(str(aag_switch) + " " + str(aag_skyTemp)
+                     + " " + str(aag_rainFreq))
+        return True
+    # end if
+# end AAGCheck
+
+
 def SAMazCheck():
-    # проверка файла состояния АГАТ на изменение азимута с последующим чтением
+    '''Проверка файла состояния АГАТ на изменение азимута с последующим чтением
+    '''
     dt_begin = datetime.datetime.now()
     str_targetFile = "Z:\obni_210-" + dt_begin.strftime('%m') +\
         "-" + dt_begin.strftime('%d') + "-" + dt_begin.strftime('%Y') +\
@@ -105,11 +138,12 @@ def SAMazCheck():
 
 
 def WorkFlagCheck(dt_now):
-    # расчет положения Солнца в текущий момент
+    '''Расчет положения Солнца в текущий момент
+    '''
     (SUN_alt, SUN_azimuth) = time_and_location_to_sun_alt_azimuth(
         dt_now.year, dt_now.month, dt_now.day,
-        dt_now.hour - UTCdif + dt_now.minute / 60.0 + dt_now.second / 3600.0,
-        OBN_lat, OBN_long)
+        dt_now.hour - UTC_DIFF + dt_now.minute / 60.0 + dt_now.second / 3600.0,
+        OBN_LAT, OBN_LONG)
     # если Солнце выше 15.5 градусов, то можно работать
     if SUN_alt > 15.5:
         return True
@@ -118,15 +152,39 @@ def WorkFlagCheck(dt_now):
     # end if
 # end WorkFlagCheck
 
+
+def system_shutdown():
+    try:
+        import win32security
+        import win32api
+        import ntsecuritycon
+        import os
+
+        flags = ntsecuritycon.TOKEN_ADJUST_PRIVILEGES | \
+            ntsecuritycon.TOKEN_QUERY
+        htoken = win32security.OpenProcessToken(win32api.GetCurrentProcess(),
+                                                flags)
+        id = win32security.LookupPrivilegeValue(None,
+                                                ntsecuritycon.SE_SHUTDOWN_NAME)
+        newPrivileges = [(id, ntsecuritycon.SE_PRIVILEGE_ENABLED)]
+        win32security.AdjustTokenPrivileges(htoken, 0, newPrivileges)
+        win32api.InitiateSystemShutdown("", "", 300, 1, 0)
+    finally:
+        os._exit(0)
+    # end try
+# end system_shutdown
+
+
 if __name__ == '__main__':
     # настройка логирования
-    logging.basicConfig(filename='DOMEauto.log', filemode='w',
+    logging.basicConfig(filename='DOMEauto.log',
                         format='%(asctime)s %(name)s \
                         %(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
     # вывод только сообщение нашего логера
     for handler in logging.root.handlers:
         handler.addFilter(logging.Filter('DOMEcontrol'))
+    logDome.info("------------------------------")
 
     # установка соединения с куполом
     try:
@@ -147,8 +205,8 @@ if __name__ == '__main__':
 
     # установка соединения с датчиком облачности
     try:
-        AAG = AAG_Connect('COM3')
-        logDome.info("AAG CloudWatcher is connected")
+        AAG = cW.AAG_Connect('COM3')
+        logDome.info("AAG cloudWatcher is connected")
     except Exception as e:
         logDome.exception(e)
     # end try
@@ -163,7 +221,7 @@ if __name__ == '__main__':
 
     while WorkFlagCheck(datetime.datetime.today()):
         # NOTE: ShutterStatus 3=indeterm, 1=closed, 0=open
-        if WeatherCheck(station) and AAG_GetSwitch(AAG):
+        if WeatherCheck(station) and AAGCheck(AAG):
             if dome.ShutterStatus != 0:
                 try:
                     dome.OpenShutter()
@@ -176,8 +234,8 @@ if __name__ == '__main__':
 
             TargetAz = SAMazCheck()
             try:
-                dome.SlewToAzimuth(TargetAz + 5)
-                logDome.info("Dome is going to " + str(TargetAz))
+                dome.SlewToAzimuth(TargetAz - 20)
+                logDome.info("SAM is in " + str(TargetAz))
             except Exception as e:
                 logDome.exception(e)
             # end try
@@ -200,8 +258,8 @@ if __name__ == '__main__':
     # end while
 
     # завершение работы датчика облачности
-    AAG_Disconnect(AAG)
-    logDome.info("AAG CloudWatcher is disconnected")
+    cW.AAG_Disconnect(AAG)
+    logDome.info("AAG cloudWatcher is disconnected")
 
     # завершение работы купола - закрытие затвора
     if dome.ShutterStatus != 1:

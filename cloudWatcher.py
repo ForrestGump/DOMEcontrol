@@ -16,7 +16,8 @@ patternAAG = re.compile('(\![\s\w]{2})([\s\w]{11,13})(\!.{12,15})')
 
 
 def AAG_Connect(SerialDevice):
-    # соединение с AAG Cloud Watcher по последовательному порту
+    '''Соединение с AAG Cloud Watcher по последовательному порту
+    '''
     AAG = None
     AAG = serial.Serial(SerialDevice, 9600, timeout=2)
     return AAG
@@ -24,14 +25,16 @@ def AAG_Connect(SerialDevice):
 
 
 def AAG_Disconnect(AAG):
-    # отключение соединения с AAG Cloud Watcher по последовательному порту
+    '''Отключение соединения с AAG Cloud Watcher по последовательному порту
+    '''
     AAG.close()
 # end AAG_Disconnect
 
 
 def AAG_CheckFile(str_targetFile):
-    # проверка файла данных датчика облачности AAG Cloud Watcher
-    # проверка - есть ли файл. Если да, то прочитать необходимое поле
+    '''Проверка файла данных датчика облачности AAG Cloud Watcher
+    проверка - есть ли файл. Если да, то прочитать необходимое поле
+    '''
     try:
         with open(str_targetFile) as f:
             file_csv = csv.DictReader(f)
@@ -55,8 +58,9 @@ def AAG_CheckFile(str_targetFile):
 
 
 def AAG_GetSwitch(AAG):
-    # проверка флага состояния непосредственно с AAG Cloud Watcher
-    # Created by Josh Walawender on 2012-02-11 (c)
+    '''Проверка флага состояния непосредственно с AAG Cloud Watcher
+    Created by Josh Walawender on 2012-02-11 (c)
+    '''
     AAG.write("F!")
     response = AAG.read(30)
     IsResponse = patternAAG.match(response)
@@ -74,8 +78,9 @@ def AAG_GetSwitch(AAG):
 
 
 def AAG_GetSkyTemp(AAG):
-    # Get Sky Temperature
-    # Created by Josh Walawender on 2012-02-11 (c)
+    '''Get Sky Temperature
+    Created by Josh Walawender on 2012-02-11 (c)
+    '''
     AAG.write("S!")
     response = AAG.read(30)
     IsResponse = patternAAG.match(response)
@@ -89,8 +94,9 @@ def AAG_GetSkyTemp(AAG):
 
 
 def AAG_GetAmbTemp(AAG):
-    # Get Ambient Temperature
-    # Created by Josh Walawender on 2012-02-11 (c)
+    '''Get Ambient Temperature
+    Created by Josh Walawender on 2012-02-11 (c)
+    '''
     AAG.write("T!")
     response = AAG.read(30)
     IsResponse = patternAAG.match(response)
@@ -104,7 +110,8 @@ def AAG_GetAmbTemp(AAG):
 
 
 def AAG_SkyTempCorrection(AmbTempC, SkyTempC):
-    # корректировка температуры согласно аппроксимационной кривой
+    '''Корректировка температуры согласно аппроксимационной кривой
+    '''
     K = (33., 0., 4., 100., 100.)
     CorrectionTempC = (K[0] / 100.) * (AmbTempC - K[1] / 10.) + \
         (K[2] / 100.) * (exp(K[3] / 1000. * AmbTempC) ** (K[4] / 100.))
@@ -113,7 +120,8 @@ def AAG_SkyTempCorrection(AmbTempC, SkyTempC):
 
 
 def AAG_GetRainFrequency(AAG):
-    # получить значение с датчика осадков
+    '''Получить значение с датчика осадков
+    '''
     AAG.write("E!")
     response = AAG.read(30)
     IsResponse = patternAAG.match(response)
@@ -127,7 +135,8 @@ def AAG_GetRainFrequency(AAG):
 
 
 def AAG_PrintResponse(AAG):
-    # вывести ответ датчика в консоль
+    '''Вывести ответ датчика в консоль
+    '''
     AAG.write("A!")
     response = AAG.read(30)
     IsResponse = patternAAG.match(response)
@@ -138,8 +147,8 @@ def AAG_PrintResponse(AAG):
         print IsResponse.group(3)
     else:
         logAAG.warning("AAG not response")
-    return None
     # end if
+    return None
 # end AAG_PrintResponse
 
 
